@@ -4,10 +4,11 @@ import tkinter as tk
 from agent import SearchAgent
 
 
+# ==============================================================
+# VISUAL GRID HUNT GAME
+# ==============================================================
+
 class VisualGridHuntGame:
-    """
-    Pacman-style grid environment for IT3012 Practical 03.
-    """
 
     def __init__(
         self,
@@ -70,9 +71,7 @@ class VisualGridHuntGame:
                 and position not in self.walls
             ):
 
-                self.food_positions.add(
-                    position
-                )
+                self.food_positions.add(position)
 
         # ------------------------------------------------------
         # Generate opponents
@@ -100,9 +99,7 @@ class VisualGridHuntGame:
                 and position not in self.food_positions
             ):
 
-                self.opponents.append(
-                    [ox, oy]
-                )
+                self.opponents.append([ox, oy])
 
         # ------------------------------------------------------
         # Game variables
@@ -113,24 +110,15 @@ class VisualGridHuntGame:
         self.collision = False
 
     # ==========================================================
-    # PERCEPT
+    # GET PERCEPT
     # ==========================================================
 
     def get_percept(self):
-        """
-        Return the information available to the agent.
-
-        Practical 03 requires the global state:
-            grid_size
-            walls
-            all_food
-        """
 
         x, y = self.agent_pos
 
         return {
 
-            # Existing percept information
             "wall_ahead": self.check_wall_ahead(),
 
             "food_here": (
@@ -144,22 +132,21 @@ class VisualGridHuntGame:
             "score":
                 self.score,
 
-            # --------------------------------------------------
-            # Practical 03 global state
-            # --------------------------------------------------
-
+            # Grid information
             "grid_size": (
                 self.width,
                 self.height
             ),
 
+            # Walls
             "walls":
                 list(self.walls),
 
+            # All remaining food
             "all_food":
                 list(self.food_positions),
 
-            # Current position
+            # Current agent position
             "position":
                 tuple(self.agent_pos)
         }
@@ -215,6 +202,7 @@ class VisualGridHuntGame:
         for opponent in self.opponents:
 
             distance = (
+
                 abs(
                     opponent[0]
                     - self.agent_pos[0]
@@ -354,10 +342,7 @@ class VisualGridHuntGame:
 
                 opponent[0] += 1
 
-            # --------------------------------------------------
-            # Collision
-            # --------------------------------------------------
-
+            # Check collision
             if opponent == self.agent_pos:
 
                 self.score -= 50
@@ -396,7 +381,7 @@ class GridGameGUI:
         num_food=15,
         num_opponents=0,
         walls=None,
-        algorithm="BFS"
+        algorithm="AStar"
     ):
 
         self.root = root
@@ -406,7 +391,7 @@ class GridGameGUI:
         # ------------------------------------------------------
 
         self.root.title(
-            "IT3012 - Practical 03 - Uninformed Search"
+            "IT3012 - Practical 04 - Informed Search"
         )
 
         self.root.geometry(
@@ -513,6 +498,8 @@ class GridGameGUI:
             pady=5
         )
 
+        # BFS Button
+
         self.bfs_button = tk.Button(
 
             self.algorithm_frame,
@@ -522,13 +509,15 @@ class GridGameGUI:
             width=8,
 
             command=lambda:
-                self.change_algorithm("BFS")
+            self.change_algorithm("BFS")
         )
 
         self.bfs_button.pack(
             side=tk.LEFT,
             padx=5
         )
+
+        # DFS Button
 
         self.dfs_button = tk.Button(
 
@@ -539,13 +528,15 @@ class GridGameGUI:
             width=8,
 
             command=lambda:
-                self.change_algorithm("DFS")
+            self.change_algorithm("DFS")
         )
 
         self.dfs_button.pack(
             side=tk.LEFT,
             padx=5
         )
+
+        # UCS Button
 
         self.ucs_button = tk.Button(
 
@@ -556,10 +547,31 @@ class GridGameGUI:
             width=8,
 
             command=lambda:
-                self.change_algorithm("UCS")
+            self.change_algorithm("UCS")
         )
 
         self.ucs_button.pack(
+            side=tk.LEFT,
+            padx=5
+        )
+
+        # ------------------------------------------------------
+        # A* BUTTON
+        # ------------------------------------------------------
+
+        self.astar_button = tk.Button(
+
+            self.algorithm_frame,
+
+            text="A*",
+
+            width=8,
+
+            command=lambda:
+            self.change_algorithm("AStar")
+        )
+
+        self.astar_button.pack(
             side=tk.LEFT,
             padx=5
         )
@@ -585,9 +597,7 @@ class GridGameGUI:
             pady=8
         )
 
-        # ------------------------------------------------------
         # Draw initial grid
-        # ------------------------------------------------------
 
         self.draw_grid()
 
@@ -597,11 +607,15 @@ class GridGameGUI:
 
     def change_algorithm(self, algorithm):
 
-        # Change selected algorithm
+        # Change algorithm
+
         self.agent.active_algo = algorithm
 
         # Clear previous plan
+
         self.agent.plan = []
+
+        # Update label
 
         self.label.config(
 
@@ -655,6 +669,7 @@ class GridGameGUI:
                 )
 
                 # Wall
+
                 if (
                     x,
                     y
@@ -663,6 +678,7 @@ class GridGameGUI:
                     color = "#64748b"
 
                 # Empty cell
+
                 else:
 
                     color = "#f1f5f9"
@@ -838,11 +854,13 @@ class GridGameGUI:
     def run_loop(self):
 
         # Disable Start button
+
         self.btn.config(
             state="disabled"
         )
 
         # Disable algorithm buttons
+
         self.bfs_button.config(
             state="disabled"
         )
@@ -855,22 +873,23 @@ class GridGameGUI:
             state="disabled"
         )
 
+        self.astar_button.config(
+            state="disabled"
+        )
+
         def step():
 
-            # --------------------------------------------------
             # Continue while game is running
-            # --------------------------------------------------
 
             if not self.env.is_done():
 
                 # Get percept
+
                 percept = (
                     self.env.get_percept()
                 )
 
-                # --------------------------------------------------
                 # Agent chooses action
-                # --------------------------------------------------
 
                 action = (
                     self.agent.sense_and_act(
@@ -878,23 +897,17 @@ class GridGameGUI:
                     )
                 )
 
-                # --------------------------------------------------
                 # Execute action
-                # --------------------------------------------------
 
                 self.env.execute_action(
                     action
                 )
 
-                # --------------------------------------------------
                 # Redraw grid
-                # --------------------------------------------------
 
                 self.draw_grid()
 
-                # --------------------------------------------------
                 # Update status
-                # --------------------------------------------------
 
                 self.label.config(
 
@@ -917,9 +930,7 @@ class GridGameGUI:
                     )
                 )
 
-                # --------------------------------------------------
                 # Run next step after 300 ms
-                # --------------------------------------------------
 
                 self.root.after(
                     300,
@@ -950,6 +961,7 @@ class GridGameGUI:
                 )
 
                 # Re-enable buttons
+
                 self.btn.config(
                     state="normal"
                 )
@@ -966,7 +978,12 @@ class GridGameGUI:
                     state="normal"
                 )
 
+                self.astar_button.config(
+                    state="normal"
+                )
+
         # Start first step
+
         step()
 
 
@@ -990,7 +1007,7 @@ if __name__ == "__main__":
 
         num_opponents=0,
 
-        algorithm="BFS"
+        algorithm="AStar"
     )
 
     root.mainloop()
