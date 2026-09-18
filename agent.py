@@ -2,6 +2,8 @@ from collections import deque
 import heapq
 import math
 
+from logic_engine import KnowledgeBase
+
 
 class SearchAgent:
     """
@@ -12,14 +14,40 @@ class SearchAgent:
         DFS   - Depth-First Search
         UCS   - Uniform-Cost Search
         AStar - A* Search
+
+    Also uses:
+        Knowledge Base
+        Forward Chaining
+        Feasibility checking
     """
 
     def __init__(self):
+
         # Stores the offline plan
         self.plan = []
 
         # Default algorithm
         self.active_algo = "BFS"
+
+        # ======================================================
+        # KNOWLEDGE BASE
+        # ======================================================
+
+        self.kb = KnowledgeBase()
+
+        # Rule 1:
+        # TargetVisible AND HasDust -> SafeToEngage
+        self.kb.tell_rule(
+            ["TargetVisible", "HasDust"],
+            "SafeToEngage"
+        )
+
+        # Rule 2:
+        # SafeToEngage AND BloodseekerMissing -> Retreat
+        self.kb.tell_rule(
+            ["SafeToEngage", "BloodseekerMissing"],
+            "Retreat"
+        )
 
     # ==========================================================
     # GET VALID NEIGHBOURS
@@ -165,10 +193,13 @@ class SearchAgent:
                 return path
 
             # Ignore outdated paths
-            if cost > reached.get(current, float("inf")):
+            if cost > reached.get(
+                current,
+                float("inf")
+            ):
                 continue
 
-            # Expand node
+            # Expand neighbors
             for action, next_state in self.get_neighbors(
                 current,
                 grid_size,
@@ -206,7 +237,10 @@ class SearchAgent:
 
     def manhattan_distance(self, pos, goal):
 
-        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+        return (
+            abs(pos[0] - goal[0])
+            + abs(pos[1] - goal[1])
+        )
 
     # ==========================================================
     # EUCLIDEAN DISTANCE
@@ -221,6 +255,31 @@ class SearchAgent:
         )
 
     # ==========================================================
+    # CHECK TILE FEASIBILITY
+    # ==========================================================
+
+    def is_tile_feasible(self, percepts):
+
+        # Clear old facts
+        self.kb.clear_facts()
+
+        # Add current percepts
+        if percepts:
+
+            for fact in percepts:
+                self.kb.tell_fact(fact)
+
+        # Run forward chaining
+        self.kb.forward_chain()
+
+        # If Retreat is deduced,
+        # the tile is logically infeasible
+        if "Retreat" in self.kb.facts:
+            return False
+
+        return True
+
+    # ==========================================================
     # A* SEARCH
     # ==========================================================
 
@@ -230,7 +289,8 @@ class SearchAgent:
         goal_pos,
         walls,
         grid_size,
-        heuristic_type="manhattan"
+        heuristic_type="manhattan",
+        percepts=None
     ):
 
         # Priority queue
@@ -256,6 +316,7 @@ class SearchAgent:
 
         # Starting node:
         # (f_cost, g_cost, counter, current_pos, path_taken)
+
         heapq.heappush(
             frontier,
             (
@@ -293,14 +354,51 @@ class SearchAgent:
             ):
                 continue
 
-            # Expand neighbors
+            # ==================================================
+            # EXPAND NEIGHBOURS
+            # ==================================================
+
             for action, neighbor in self.get_neighbors(
                 current_pos,
                 grid_size,
                 walls
             ):
 
+                # --------------------------------------------------
+                # KNOWLEDGE BASE FEASIBILITY CHECK
+                # --------------------------------------------------
+
+                tile_percepts = []
+
+                # If percepts were supplied,
+                # use them for this tile.
+                if percepts:
+
+                    # Handle dictionary format
+                    if isinstance(percepts, dict):
+
+                        tile_percepts = percepts.get(
+                            neighbor,
+                            []
+                        )
+
+                    # Handle simple list format
+                    else:
+
+                        tile_percepts = percepts
+
+                # Clear old facts and perform inference
+                if not self.is_tile_feasible(
+                    tile_percepts
+                ):
+
+                    # Tile is logically infeasible
+                    continue
+
+                # --------------------------------------------------
                 # Calculate new g(n)
+                # --------------------------------------------------
+
                 g_new = g_cost + 1
 
                 # Only continue if new path is better
@@ -326,7 +424,9 @@ class SearchAgent:
                             goal_pos
                         )
 
-                    # Calculate f(n) = g(n) + h(n)
+                    # Calculate f(n)
+                    # f(n) = g(n) + h(n)
+
                     f_new = g_new + h_new
 
                     counter += 1
@@ -395,7 +495,14 @@ class SearchAgent:
     # SELECT SEARCH ALGORITHM
     # ==========================================================
 
-    def search(self, start, goal, grid_size, walls):
+    def search(
+        self,
+        start,
+        goal,
+        grid_size,
+        walls,
+        percepts=None
+    ):
 
         if self.active_algo == "BFS":
 
@@ -431,7 +538,8 @@ class SearchAgent:
                 goal,
                 walls,
                 grid_size,
-                heuristic_type="manhattan"
+                heuristic_type="manhattan",
+                percepts=percepts
             )
 
         else:
@@ -449,7 +557,40 @@ class SearchAgent:
 
     def sense_and_act(self, percept):
 
-        # Create a new plan if there is no plan
+        # ======================================================
+        # CREATE PERCEPT FACTS
+        # ======================================================
+
+        percept_facts = []
+
+        if percept.get(
+            "TargetVisible",
+            False
+        ):
+            percept_facts.append(
+                "TargetVisible"
+            )
+
+        if percept.get(
+            "HasDust",
+            False
+        ):
+            percept_facts.append(
+                "HasDust"
+            )
+
+        if percept.get(
+            "BloodseekerMissing",
+            False
+        ):
+            percept_facts.append(
+                "BloodseekerMissing"
+            )
+
+        # ======================================================
+        # CREATE A NEW PLAN IF THERE IS NO PLAN
+        # ======================================================
+
         if not self.plan:
 
             # Current position
@@ -493,10 +634,14 @@ class SearchAgent:
                     current_position,
                     closest_food,
                     grid_size,
-                    walls
+                    walls,
+                    percept_facts
                 )
 
-        # Execute first action
+        # ======================================================
+        # EXECUTE FIRST ACTION
+        # ======================================================
+
         if self.plan:
 
             return self.plan.pop(0)
@@ -505,9 +650,9 @@ class SearchAgent:
         return "Stay"
 
 
-# ==========================================================
+# ==============================================================
 # HEURISTIC TEST
-# ==========================================================
+# ==============================================================
 
 if __name__ == "__main__":
 
@@ -518,10 +663,55 @@ if __name__ == "__main__":
 
     print(
         "Manhattan Distance:",
-        agent.manhattan_distance(start, goal)
+        agent.manhattan_distance(
+            start,
+            goal
+        )
     )
 
     print(
         "Euclidean Distance:",
-        agent.euclidean_distance(start, goal)
+        agent.euclidean_distance(
+            start,
+            goal
+        )
     )
+
+    # ==========================================================
+    # KNOWLEDGE BASE TEST
+    # ==========================================================
+
+    print("\nKnowledge Base Test:")
+
+    agent.kb.clear_facts()
+
+    agent.kb.tell_fact("TargetVisible")
+    agent.kb.tell_fact("HasDust")
+
+    agent.kb.forward_chain()
+
+    print(
+        "Facts after first inference:",
+        agent.kb.facts
+    )
+
+    agent.kb.tell_fact("BloodseekerMissing")
+
+    agent.kb.forward_chain()
+
+    print(
+        "Facts after second inference:",
+        agent.kb.facts
+    )
+
+    if "Retreat" in agent.kb.facts:
+
+        print(
+            "Retreat was deduced."
+        )
+
+    else:
+
+        print(
+            "Retreat was NOT deduced."
+        )
